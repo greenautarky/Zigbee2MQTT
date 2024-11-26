@@ -55,8 +55,12 @@
       "options": "-d -d",
       "log": false
     },
-    "mqtt": {},
-    "serial": {}
+    "mqtt": {
+      "server": "mqtt://addon_0b97fa2c_ga_mosquitto:1883",
+      "user": "ga_zigbee2mqtt",
+      "password": "ga_zigbee2mqtt"
+      },
+      "serial": {}
   },
   "schema": {
     "data_path": "str",
