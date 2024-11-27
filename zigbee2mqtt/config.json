@@ -1,7 +1,7 @@
 {
-  "name": "Zigbee2MQTT",
+  "name": "GA_Zigbee2MQTT",
   "version": "1.41.0-1",
-  "slug": "zigbee2mqtt",
+  "slug": "ga_zigbee2mqtt",
   "description": "Use your ZigBee devices without the vendor's bridge or gateway",
   "uart": true,
   "udev": true,
