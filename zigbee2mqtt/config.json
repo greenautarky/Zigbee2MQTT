@@ -63,7 +63,10 @@
       "user": "ga_zigbee2mqtt",
       "password": "ga_zigbee2mqtt"
       },
-      "serial": {}
+      "serial": {
+        "adapter": "zstack",
+        "port": "/dev/ttyACM0"
+      }
   },
   "schema": {
     "data_path": "str",
