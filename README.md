@@ -1,3 +1,5 @@
+> **GreenAutarky Build** — This is a customized version maintained by [GreenAutarky](https://github.com/greenautarky). Based on [zigbee2mqtt/hassio-zigbee2mqtt](https://github.com/zigbee2mqtt/hassio-zigbee2mqtt) by the Zigbee2MQTT project. Licensed under Apache-2.0.
+
 <div align="center">
     <a href="https://github.com/zigbee2mqtt/hassio-zigbee2mqtt">
         <img width="150" height="150" src="zigbee2mqtt/logo.png">
