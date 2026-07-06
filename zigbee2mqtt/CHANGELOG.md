@@ -1,3 +1,8 @@
+## 2.12.1-1
+- Updated Zigbee2MQTT to version [`2.12.1`](https://github.com/Koenkk/zigbee2mqtt/releases/tag/2.12.1)
+- GreenAutarky self-build: publish to `ghcr.io/greenautarky/ga_zigbee2mqtt-{arch}` for **aarch64, amd64 and armv7**. Upstream dropped armv7 after 2.6.3-1; we rebuild it on the Alpine 3.21 / Node 22 base so the iHost (armv7) fleet can move past 2.6.3.
+- Dockerfile synced to upstream: install the exact pinned `pnpm` from `package.json` (required for `--frozen-lockfile` on 2.12.x), base-image curl validation, container HEALTHCHECK.
+
 ## 2.1.1-1
 - Updated Zigbee2MQTT to version [`2.1.1`](https://github.com/Koenkk/zigbee2mqtt/releases/tag/2.1.1)
 

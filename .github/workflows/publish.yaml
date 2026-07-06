@@ -1,0 +1,111 @@
+name: Build & Push (GHCR) - ga_zigbee2mqtt
+
+# Self-build the Zigbee2MQTT add-on image for GreenAutarky, INCLUDING armv7.
+# Upstream (zigbee2mqtt/hassio-zigbee2mqtt) dropped armv7/armhf/i386 after
+# 2.6.3-1, which froze the iHost (armv7) fleet. Z2M core still builds fine on
+# Node 22 / arm32, so we rebuild the add-on image ourselves and publish it to
+# ghcr.io/greenautarky/ga_zigbee2mqtt-{arch}.
+
+on:
+  push:
+    branches: [ master, "ga-build/**" ]
+    paths:
+      - "zigbee2mqtt/config.json"
+      - "common/**"
+      - ".github/workflows/publish.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NS: ghcr.io/greenautarky
+  ADDON_SLUG: ga_zigbee2mqtt
+  ADDON_DIR: zigbee2mqtt
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ha_arch: aarch64
+            platform: linux/arm64
+          - ha_arch: amd64
+            platform: linux/amd64
+          - ha_arch: armv7
+            platform: linux/arm/v7
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read add-on version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=$(jq -r '.version' "${ADDON_DIR}/config.json")
+          if [ -z "${ver}" ] || [ "${ver}" = "null" ]; then
+            echo "::error::Could not read version from ${ADDON_DIR}/config.json"
+            exit 1
+          fi
+          echo "Detected add-on version: ${ver}"
+          echo "value=${ver}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare build context
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Dockerfile + rootfs live in common/ and are shared by all
+          # add-on variants — stage them into the build dir like the upstream CI.
+          cp common/Dockerfile "${ADDON_DIR}/Dockerfile"
+          cp -R common/rootfs "${ADDON_DIR}/rootfs"
+
+      - name: Metadata (tags/labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_NS }}/${{ env.ADDON_SLUG }}-${{ matrix.ha_arch }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.ver.outputs.value }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Resolve base image
+        id: base
+        shell: bash
+        run: |
+          echo "img=ghcr.io/home-assistant/${{ matrix.ha_arch }}-base:3.21" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Push (${{ matrix.ha_arch }})
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ env.ADDON_DIR }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_FROM=${{ steps.base.outputs.img }}
+            BUILD_VERSION=${{ steps.ver.outputs.value }}
+            BUILD_ARCH=${{ matrix.ha_arch }}
