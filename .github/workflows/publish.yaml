@@ -26,18 +26,27 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
       matrix:
         include:
+          # aarch64 builds NATIVELY on an arm64 runner. Emulating arm64 via
+          # qemu-user crashes Node/pnpm with "Illegal instruction (SIGILL,
+          # exit 132)" during the Z2M build; a native runner avoids qemu.
           - ha_arch: aarch64
             platform: linux/arm64
+            runner: ubuntu-24.04-arm
           - ha_arch: amd64
             platform: linux/amd64
+            runner: ubuntu-latest
+          # armv7 has no native hosted runner, but qemu-arm emulation of the
+          # 32-bit build is stable (verified building 2.12.1 successfully).
           - ha_arch: armv7
             platform: linux/arm/v7
+            runner: ubuntu-latest
 
     steps:
       - name: Checkout
