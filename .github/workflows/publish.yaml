@@ -104,7 +104,16 @@ jobs:
         id: base
         shell: bash
         run: |
-          echo "img=ghcr.io/home-assistant/${{ matrix.ha_arch }}-base:3.21" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          # Single source of truth = common/build.yaml (upstream-style). aarch64
+          # and amd64 track upstream's Alpine 3.22; armv7 is our 3.21 divergence.
+          img=$(sed -n "s|^[[:space:]]*${{ matrix.ha_arch }}:[[:space:]]*||p" common/build.yaml | head -1)
+          if [ -z "${img}" ]; then
+            echo "::error::No build_from entry for ${{ matrix.ha_arch }} in common/build.yaml"
+            exit 1
+          fi
+          echo "Base image for ${{ matrix.ha_arch }}: ${img}"
+          echo "img=${img}" >> "$GITHUB_OUTPUT"
 
       - name: Build & Push (${{ matrix.ha_arch }})
         uses: docker/build-push-action@v6

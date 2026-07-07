@@ -1,7 +1,10 @@
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base:3.21
-  amd64: ghcr.io/home-assistant/amd64-base:3.21
-  # armv7-base tops out at Alpine 3.21 (Node 22) — the last tag upstream builds.
-  # Z2M >=2.7 requires Node ^20/^22/^24, so 3.21 is the minimum viable base and
-  # the reason we self-build armv7 (upstream dropped armv7 after 2.6.3-1).
+  # aarch64 + amd64: identical to upstream zigbee2mqtt/hassio-zigbee2mqtt
+  # (Alpine 3.22). Keep these in lockstep with upstream on every Z2M bump.
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.22
+  amd64: ghcr.io/home-assistant/amd64-base:3.22
+  # armv7: the only GreenAutarky-specific divergence. Upstream stopped building
+  # armv7 after 2.6.3-1; we keep it alive on Alpine 3.21 (Node 22), the base our
+  # CI has verified builds Z2M 2.12.x on 32-bit ARM. (armv7-base:3.22 exists but
+  # 3.21 is the proven one — bump it only after a green armv7 CI run.)
   armv7: ghcr.io/home-assistant/armv7-base:3.21
