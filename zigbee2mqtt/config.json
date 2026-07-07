@@ -56,15 +56,8 @@
       "options": "-d -d",
       "log": false
     },
-    "mqtt": {
-      "server": "mqtt://addon_0b97fa2c_ga_mosquitto:1883",
-      "user": "ga_zigbee2mqtt",
-      "password": "ga_zigbee2mqtt"
-    },
-    "serial": {
-      "adapter": "zstack",
-      "port": "/dev/ttyACM0"
-    }
+    "mqtt": {},
+    "serial": {}
   },
   "schema": {
     "data_path": "str",
