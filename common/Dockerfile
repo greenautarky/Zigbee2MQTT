@@ -51,7 +51,23 @@ COPY --from=dependencies_and_build /app/package.json /app/LICENSE /app/index.js 
 
 ENV NODE_ENV production
 
-HEALTHCHECK --interval=1m --timeout=3s --start-period=30s --start-interval=3s \
+# GA self-build (#480): pre-warm the Node 22 V8 compile cache at build time so
+# every cold start reuses compiled bytecode instead of re-parsing ~86 MB of
+# node_modules. On slow armv7 CPUs this parse dominates startup (zigbee-herdsman-
+# converters ~5 s + zigbee-herdsman ~3.7 s measured on KIB-SON). Cache is
+# Node-version + path keyed (arch-independent V8 bytecode), so one baked in the
+# QEMU-armv7 build is valid on the device.
+ENV NODE_COMPILE_CACHE=/app/.node-compile-cache
+RUN mkdir -p /app/.node-compile-cache; \
+    ZIGBEE2MQTT_DATA=/tmp/z2mwarm timeout 180 node index.js >/dev/null 2>&1 || true; \
+    rm -rf /tmp/z2mwarm; \
+    echo "z2m compile cache baked: $(du -sh /app/.node-compile-cache 2>/dev/null | cut -f1)"
+
+# GA self-build (#480): raise the container health-check start-period. z2m 2.12
+# cold-start on armv7 (module load + coordinator + web UI) exceeds the upstream
+# 30s grace, so the Supervisor watchdog marked it unhealthy and crash-looped it
+# before its web server on :8099 came up. 180s gives a slow armv7 enough headroom.
+HEALTHCHECK --interval=1m --timeout=5s --start-period=180s --start-interval=5s \
   CMD curl -f http://localhost:8099/
 
 ENTRYPOINT [ "/sbin/tini", "--", "/docker-entrypoint.sh"]
