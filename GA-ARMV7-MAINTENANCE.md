@@ -34,24 +34,29 @@ newer Z2M if **we build it ourselves**. That is what this fork does.
   aarch64/amd64 track upstream's `3.22`. Keep these in lockstep on every bump;
   only move armv7 off 3.21 after a green armv7 CI run.
 
-The **build** of 2.12.1 for armv7 succeeds. Runtime status is **unresolved** —
-see below (and do NOT trust standalone `docker run` to settle it).
+The **build** of 2.12.1 for armv7 succeeds, and so does the runtime — see below.
 
-## Runtime status on armv7 — UNRESOLVED (2026-07-16), NOT proven broken
+## ✅ Runtime status on armv7 — PROVEN WORKING (2.12.1-3, 2026-07-16)
 
-The evidence is mixed and the current fleet pin stays at **2.6.3-1** out of
-caution, but "2.12 doesn't run on armv7" is **not established**:
+`ga_zigbee2mqtt-armv7:2.12.1-3` was updated onto a real armv7 canary
+(KIB-SON-00000049) **via the Supervisor path** (`ha store reload` + `ha addons
+update`) and ran completely clean:
 
-- **FOR it working:** on 2026-07-07, `ga_zigbee2mqtt-armv7:2.12.1-1` ran on a
-  real armv7 canary (K0) **via the normal Supervisor add-on path** — MQTT
-  auto-binding connected, the ember coordinator came up (EmberZNet 8.0.2,
-  `/dev/ttyS4`), and real paired Zigbee devices reported (Sonoff TRVZB). So
-  2.12 CAN run on armv7.
-- **AGAINST / open:** a later build `2.12.1-2` (which added the
-  `NODE_COMPILE_CACHE` warm-up bake below) was reported not to come up healthy
-  on a canary — but that observation is **confounded** by the config-v5
-  migration trap (next section) and by an **invalid test method** (below). It is
-  NOT clean evidence of a 2.12 runtime hang.
+- `ha addons update` finished in ~1m39s; the addon came up **healthy in ~34s**.
+- Startup log: ember coordinator up (`[STACK STATUS] Network up`, firmware
+  `8.0.2 [GA]`), `zigbee-herdsman started (resumed)`, `Connected to MQTT server`,
+  **`Started frontend on port 8099`**, and **both paired Zigbee devices reported
+  live** (a Sonoff TRVZB with its full heating schedule + a temp/humidity
+  sensor, battery 100%).
+- **RestartCount=0, health=healthy for 10+ min** — no crash-loop, zero real
+  errors/warnings in the log. Config migrated v4→v5 cleanly
+  (`migration-4-to-5.log`: "Migrated settings to version 5").
+
+So **2.12.x runs fine on armv7**. The earlier "runtime blocker" was a false
+alarm from an invalid test method (next section) plus the config-v5 trap. The
+clean 2.12.1-3 build (compile-cache bake removed) is the version to ship. The
+earlier data point stands too: 2.12.1-1 ran on K0 (2026-07-07) via the same
+Supervisor path with paired devices.
 
 ### ⚠️ Standalone `docker run` is NOT a valid way to test this add-on
 
@@ -127,16 +132,16 @@ back.
 
 ## Current state (2026-07-16)
 
-| arch | Z2M version in fleet | notes |
-|------|----------------------|-------|
-| armv7 (iHost) | **2.6.3-1** | last upstream armv7 build; healthy. 2.12.x runtime on armv7 is UNRESOLVED (2.12.1-1 ran on K0 07-07; -2 confounded) — re-validate via the Supervisor path with a compile-cache-free 2.12.1-3. |
+| arch | Z2M version | notes |
+|------|-------------|-------|
+| armv7 (iHost) | **2.12.1-3** ✅ | proven clean on canary K49 (2026-07-16); coordinator + MQTT + frontend + paired devices, 10+ min healthy, RestartCount 0. Store (vibe_addons) + baked pin (addon-images.json) both bumped. Canary-first: only devices explicitly `ha addons update`-d have moved. |
 | aarch64 / amd64 | free to move | not affected by the armv7 question. |
 
-## The `NODE_COMPILE_CACHE` warm-up bake — treat as suspect
+## The `NODE_COMPILE_CACHE` warm-up bake — removed in 2.12.1-3
 
-`common/Dockerfile` (added in 2.12.1-2) sets `NODE_COMPILE_CACHE` and runs a
-build-time `node index.js` warm-up to bake a V8 bytecode cache. The intent was
-faster startup, but it is **unproven on armv7** and is the prime suspect for any
-2.12.1-2 regression vs the known-good 2.12.1-1. If a fresh Supervisor-path test
-shows -2 misbehaving, drop the warm-up first and keep only the raised
-`HEALTHCHECK --start-period`.
+`common/Dockerfile` in **2.12.1-2** set `NODE_COMPILE_CACHE` and ran a build-time
+`node index.js` warm-up to bake a V8 bytecode cache (faster startup). It was
+never validly tested on armv7 and was **removed in 2.12.1-3**, which then ran
+clean — so the clean build is the shippable one. If you re-add a compile-cache
+later, prove it via the Supervisor path (`ha addons update` on one armv7 canary),
+never a standalone `docker run`, and confirm it *helps* startup without hurting.
