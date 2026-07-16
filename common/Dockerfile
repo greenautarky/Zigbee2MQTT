@@ -51,17 +51,12 @@ COPY --from=dependencies_and_build /app/package.json /app/LICENSE /app/index.js 
 
 ENV NODE_ENV production
 
-# GA self-build (#480): pre-warm the Node 22 V8 compile cache at build time so
-# every cold start reuses compiled bytecode instead of re-parsing ~86 MB of
-# node_modules. On slow armv7 CPUs this parse dominates startup (zigbee-herdsman-
-# converters ~5 s + zigbee-herdsman ~3.7 s measured on KIB-SON). Cache is
-# Node-version + path keyed (arch-independent V8 bytecode), so one baked in the
-# QEMU-armv7 build is valid on the device.
-ENV NODE_COMPILE_CACHE=/app/.node-compile-cache
-RUN mkdir -p /app/.node-compile-cache; \
-    ZIGBEE2MQTT_DATA=/tmp/z2mwarm timeout 180 node index.js >/dev/null 2>&1 || true; \
-    rm -rf /tmp/z2mwarm; \
-    echo "z2m compile cache baked: $(du -sh /app/.node-compile-cache 2>/dev/null | cut -f1)"
+# GA self-build (#480): the NODE_COMPILE_CACHE warm-up bake (present in 2.12.1-2)
+# was REMOVED in 2.12.1-3 — it was unproven on armv7 and the prime suspect for a
+# regression vs the known-good 2.12.1-1 (which ran on K0 2026-07-07 without it).
+# We ship the clean build first and prove 2.12 on armv7 via the Supervisor path;
+# a compile-cache optimisation can be re-added later once it is measured to help
+# and not hurt. See GA-ARMV7-MAINTENANCE.md.
 
 # GA self-build (#480): raise the container health-check start-period. z2m 2.12
 # cold-start on armv7 (module load + coordinator + web UI) exceeds the upstream
