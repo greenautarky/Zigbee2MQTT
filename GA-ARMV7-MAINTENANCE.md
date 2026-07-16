@@ -34,30 +34,52 @@ newer Z2M if **we build it ourselves**. That is what this fork does.
   aarch64/amd64 track upstream's `3.22`. Keep these in lockstep on every bump;
   only move armv7 off 3.21 after a green armv7 CI run.
 
-The **build** of 2.12.1 for armv7 succeeds. The problem is **runtime** (below).
+The **build** of 2.12.1 for armv7 succeeds. Runtime status is **unresolved** —
+see below (and do NOT trust standalone `docker run` to settle it).
 
-## ⚠️ RUNTIME BLOCKER — Z2M 2.12.x does not run on armv7 (as of 2026-07-16)
+## Runtime status on armv7 — UNRESOLVED (2026-07-16), NOT proven broken
 
-A watchdog-free boot test of `ga_zigbee2mqtt-armv7:2.12.1-2` on real armv7
-hardware (canary KIB-SON-00000006) showed:
+The evidence is mixed and the current fleet pin stays at **2.6.3-1** out of
+caution, but "2.12 doesn't run on armv7" is **not established**:
 
-- container **starts and stays running** for the full 8-minute observation,
-- emits **zero log lines** to stdout,
-- **never binds the web frontend on `:8099`** (health-check target).
+- **FOR it working:** on 2026-07-07, `ga_zigbee2mqtt-armv7:2.12.1-1` ran on a
+  real armv7 canary (K0) **via the normal Supervisor add-on path** — MQTT
+  auto-binding connected, the ember coordinator came up (EmberZNet 8.0.2,
+  `/dev/ttyS4`), and real paired Zigbee devices reported (Sonoff TRVZB). So
+  2.12 CAN run on armv7.
+- **AGAINST / open:** a later build `2.12.1-2` (which added the
+  `NODE_COMPILE_CACHE` warm-up bake below) was reported not to come up healthy
+  on a canary — but that observation is **confounded** by the config-v5
+  migration trap (next section) and by an **invalid test method** (below). It is
+  NOT clean evidence of a 2.12 runtime hang.
 
-So it is **not** a slow-start / watchdog-kill problem — the process hangs
-silently very early, before it serves anything. Our two mitigations already in
-`common/Dockerfile` help the *other* failure mode but do not fix this one:
+### ⚠️ Standalone `docker run` is NOT a valid way to test this add-on
 
-1. `NODE_COMPILE_CACHE` + a build-time warm-up bake (V8 bytecode cache) —
-   against slow Node module load.
-2. `HEALTHCHECK ... --start-period=180s` — so a slow (but eventual) start is not
-   killed by the Supervisor watchdog.
+Hand-running the image outside the Supervisor lifecycle **cannot** exercise
+Z2M: the HA add-on `cont-init` reads its config (`data_path`, mqtt binding, …)
+from the **Supervisor API**, and a standalone container is refused:
 
-**Conclusion:** 2.12.x is not viable on armv7 yet; the fleet stays on
-**2.6.3-1** for armv7. aarch64/amd64 are unaffected and can run 2.12.x.
-Unfreezing armv7 needs upstream-level debugging of the early hang (profile the
-Node startup on 32-bit ARM, find the module/call that never returns).
+```
+ERROR: Unable to access the API, forbidden
+ERROR: Failed to get addon config from Supervisor API
+FATAL: Please set a value for the 'data_path' option.
+```
+
+The `SUPERVISOR_TOKEN` only authorises API calls from the container Supervisor
+itself started; a hand-launched container gets `forbidden` and the entrypoint
+FATALs before Z2M starts. So any "it never binds :8099 standalone" result says
+nothing about Z2M on armv7 — it never got to run. **Only the Supervisor path
+(`ha addons update`/install to the pinned version) is a valid test.**
+
+### How to actually settle it (recommended next step)
+
+1. Rebuild a **compile-cache-free** `2.12.1-3` (drop the warm-up bake — it is
+   unproven and the prime suspect for any -2 regression; keep only the raised
+   `--start-period`).
+2. Pin the store (`vibe_addons/zigbee2mqtt`) to it and `ha addons update
+   99f1cad4_ga_zigbee2mqtt` on ONE armv7 canary.
+3. Judge health via the **Supervisor** (`ha addons info … state`, health-check),
+   not a hand-run container. Mind the config-v5 trap when rolling back.
 
 ## 🪤 Config-migration trap — do NOT point 2.12.x at a 2.6.3-1 data dir
 
@@ -95,9 +117,11 @@ back.
    only after a green armv7 CI run).
 3. Push to `master` or a `ga-build/**` branch → CI builds+pushes all three
    arches to `ghcr.io/greenautarky/ga_zigbee2mqtt-{arch}:{version}`.
-4. **Before rolling armv7:** run a watchdog-free boot test on ONE armv7 canary
-   (does `:8099` ever bind? see the runtime blocker above). aarch64/amd64 can be
-   rolled without this gate.
+4. **Before rolling armv7:** update ONE armv7 canary via the **Supervisor path**
+   (`ha addons update 99f1cad4_ga_zigbee2mqtt`) and judge health via `ha addons
+   info … state` + the Supervisor health-check. Do NOT rely on a standalone
+   `docker run` — it cannot authenticate to the Supervisor API and never runs
+   Z2M (see the runtime-status section). aarch64/amd64 skip this gate.
 5. Roll via the add-on store pin (`vibe_addons` in `ha-operating-system`) — the
    iHost addon slug is `99f1cad4_ga_zigbee2mqtt`.
 
@@ -105,5 +129,14 @@ back.
 
 | arch | Z2M version in fleet | notes |
 |------|----------------------|-------|
-| armv7 (iHost) | **2.6.3-1** | last upstream armv7 build; healthy. 2.12.x blocked by the runtime hang. |
-| aarch64 / amd64 | free to move | not affected by the armv7 hang. |
+| armv7 (iHost) | **2.6.3-1** | last upstream armv7 build; healthy. 2.12.x runtime on armv7 is UNRESOLVED (2.12.1-1 ran on K0 07-07; -2 confounded) — re-validate via the Supervisor path with a compile-cache-free 2.12.1-3. |
+| aarch64 / amd64 | free to move | not affected by the armv7 question. |
+
+## The `NODE_COMPILE_CACHE` warm-up bake — treat as suspect
+
+`common/Dockerfile` (added in 2.12.1-2) sets `NODE_COMPILE_CACHE` and runs a
+build-time `node index.js` warm-up to bake a V8 bytecode cache. The intent was
+faster startup, but it is **unproven on armv7** and is the prime suspect for any
+2.12.1-2 regression vs the known-good 2.12.1-1. If a fresh Supervisor-path test
+shows -2 misbehaving, drop the warm-up first and keep only the raised
+`HEALTHCHECK --start-period`.
