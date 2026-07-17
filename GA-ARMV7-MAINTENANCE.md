@@ -134,7 +134,7 @@ back.
 
 | arch | Z2M version | notes |
 |------|-------------|-------|
-| armv7 (iHost) | **2.12.1-3** ✅ | rolled to ALL 7 canaries (K0/K6/K7/K10/K17/K49/K31), all healthy, RestartCount 0; K0+K49 have real paired Zigbee devices (all online). ~34s to healthy vs 180s grace. Store (vibe_addons#63) + baked pin (addon-images.json / haos#207) bumped. K31 was recovered via the serial console (register-guard race + a physical power-cycle; A16 port 13 = console link only, not power). |
+| armv7 (iHost) | **2.12.1-3** ✅ | rolled to ALL 7 canaries (K0/K6/K7/K10/K17/K49/K31), all healthy, RestartCount 0; K0+K49 have real paired Zigbee devices (all online). ~34s to healthy vs 180s grace. Store (vibe_addons#63) + baked pin (addon-images.json / haos#207) bumped. K31 was recovered via the serial console (register-guard race; power-cycled to clear it — A16 port 13 IS the iHost USB power and can be switched, see GA notes). |
 | aarch64 / amd64 | free to move | not affected by the armv7 question. |
 
 ## The `NODE_COMPILE_CACHE` warm-up bake — removed in 2.12.1-3
