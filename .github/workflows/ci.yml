@@ -61,7 +61,36 @@ jobs:
     - name: Docker login
       if: (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       run: echo ${{ secrets.DOCKER_KEY }} | docker login -u koenkk --password-stdin
-    - name: Build
+
+    # Resolve the EXACT local tag the Home Assistant builder produces for this
+    # matrix cell: "<repository>/<image-with-arch>:<version>", read from the
+    # addon's own config.json. This mirrors builder.sh 1:1 — it derives
+    # repository/image from `.image` (splitting on the last '/'), substitutes
+    # {arch} -> the build arch, and reads the tag from `.version`. We compute it
+    # ourselves so the gate and the push below reference the same image the
+    # builder built, without changing anything about the build.
+    - name: Resolve local image tag
+      id: img
+      run: |
+        set -euo pipefail
+        addon="${{ matrix.addon }}"
+        arch="${{ matrix.arch }}"
+        image="$(jq -r '.image' "${addon}/config.json" | sed "s/{arch}/${arch}/g")"
+        version="$(jq -r '.version' "${addon}/config.json")"
+        echo "image=${image}"     >> "$GITHUB_OUTPUT"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "ref=${image}:${version}" >> "$GITHUB_OUTPUT"
+        echo "Local scan target: ${image}:${version}"
+
+    # BUILD ONLY — never push here. Appending `--test` forces DOCKER_PUSH=false
+    # inside the HA builder, so it builds and tags the image locally but does NOT
+    # upload it. The single-platform image lands in the runner's docker image
+    # store (default buildx docker driver), so the CVE gate can scan it BEFORE it
+    # exists in any registry. Everything about WHAT is built is unchanged: same
+    # per-arch base images from common/build.yaml, same BUILD_FROM/BUILD_VERSION/
+    # BUILD_ARCH build-args the builder injects, same common/Dockerfile. The only
+    # change to this step versus before is the trailing `--test`.
+    - name: Build (local only, no push — the CVE gate decides)
       run: |
         if [ "${{ matrix.addon }}" != "zigbee2mqtt-proxy" ]; then
           cp -R common/rootfs ${{ matrix.addon }}
@@ -72,4 +101,70 @@ jobs:
             -v /home/runner/.docker:/root/.docker \
             -v /run/docker.sock:/run/docker.sock:rw \
             -v $(pwd)/${{ matrix.addon }}:/data homeassistant/amd64-builder --${{ matrix.arch }} -t /data \
-            ${{ env.DOCKER_ARGS }}
+            ${{ env.DOCKER_ARGS }} --test
+
+    # CVE GATE (BLOCKING) on the OS/distro layer (apk). A *fixable* HIGH/CRITICAL
+    # here means the base image has a patched package available, so a rebuild
+    # fixes it — we FAIL the job and the image is NOT pushed. `--ignore-unfixed`
+    # so a distro CVE with no fix yet cannot permanently wedge the build.
+    # Direct trivy invocation with the exact flags proven in the green
+    # greenautarky/ga-addon-base template (build.yaml). Scans the LOCAL image over
+    # the docker socket, before it reaches any registry.
+    # If the builder skipped the build (`--docker-hub-check` found the version
+    # already published on the release path), there is no local image and nothing
+    # new ships, so there is nothing to gate — we log that and pass.
+    - name: CVE GATE — OS packages (fixable HIGH/CRITICAL block the push)
+      run: |
+        set -euo pipefail
+        ref="${{ steps.img.outputs.ref }}"
+        if ! docker image inspect "$ref" >/dev/null 2>&1; then
+          echo "No local image ${ref} — builder skipped the build (version already published); nothing to scan or ship."
+          exit 0
+        fi
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy:latest image \
+          --scanners vuln --pkg-types os \
+          --severity HIGH,CRITICAL --ignore-unfixed \
+          --exit-code 1 --no-progress \
+          "$ref"
+
+    # CVE REPORT (NON-GATING) — node/npm and other bundled library deps. This is
+    # informational only: Z2M's node dependency tree is large and mostly upstream,
+    # so we surface library CVEs for visibility but never block the push on them
+    # here. `--exit-code 0` so it can never fail; `if: always()` so it runs even
+    # when the gate above failed, giving the full picture in the log.
+    - name: CVE report — libraries incl. node/npm (visibility, non-gating)
+      if: always()
+      run: |
+        ref="${{ steps.img.outputs.ref }}"
+        if ! docker image inspect "$ref" >/dev/null 2>&1; then
+          echo "No local image ${ref} — nothing to report."
+          exit 0
+        fi
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy:latest image \
+          --scanners vuln --pkg-types library \
+          --severity HIGH,CRITICAL \
+          --exit-code 0 --no-progress \
+          "$ref"
+
+    # PUSH — reached only if the CVE gate passed. Pushes EXACTLY the tags the HA
+    # builder would have pushed: "<image>:<version>", plus ":latest" when the
+    # builder created it (i.e. when `--no-latest` was not in DOCKER_ARGS — the
+    # publish paths). Gated on the SAME condition as the docker login above, so we
+    # push only where the original build+push did (master/tag on push/dispatch),
+    # authenticated via the credentials that login wrote to the runner.
+    - name: Push (gate passed — publish the vetted image)
+      if: (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      run: |
+        set -euo pipefail
+        ref="${{ steps.img.outputs.ref }}"
+        image="${{ steps.img.outputs.image }}"
+        if ! docker image inspect "$ref" >/dev/null 2>&1; then
+          echo "No local image ${ref} — builder skipped the build (version already published); nothing to push."
+          exit 0
+        fi
+        docker push "$ref"
+        if docker image inspect "${image}:latest" >/dev/null 2>&1; then
+          docker push "${image}:latest"
+        fi
