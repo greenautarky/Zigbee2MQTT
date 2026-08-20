@@ -113,6 +113,15 @@ jobs:
     # If the builder skipped the build (`--docker-hub-check` found the version
     # already published on the release path), there is no local image and nothing
     # new ships, so there is nothing to gate — we log that and pass.
+    # COVERAGE ASSERTION (scripts/cve-gate.sh): a bare `trivy --exit-code 1`
+    # returns SUCCESS when it matches ZERO OS packages — an empty report is
+    # indistinguishable from a clean one. Measured 2026-08-20: the previous
+    # command here returned exit 0 on an image with 143 real binaries and no
+    # package DB. cve-gate.sh adds `--list-all-pkgs`, counts what trivy
+    # actually evaluated, and exits 2 (BROKEN SCAN, never a pass) if that is
+    # zero or below COVERAGE_MIN_PCT of the image's own apk/dpkg DB. Same
+    # fail-closed rule as scan-cves.sh in ha-operating-system. The fixtures in
+    # tests/cve-gate/ re-prove it red AND green on every change.
     - name: CVE GATE — OS packages (fixable HIGH/CRITICAL block the push)
       run: |
         set -euo pipefail
@@ -121,12 +130,7 @@ jobs:
           echo "No local image ${ref} — builder skipped the build (version already published); nothing to scan or ship."
           exit 0
         fi
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-          aquasec/trivy:latest image \
-          --scanners vuln --pkg-types os \
-          --severity HIGH,CRITICAL --ignore-unfixed \
-          --exit-code 1 --no-progress \
-          "$ref"
+        scripts/cve-gate.sh "$ref"
 
     # CVE REPORT (NON-GATING) — node/npm and other bundled library deps. This is
     # informational only: Z2M's node dependency tree is large and mostly upstream,
