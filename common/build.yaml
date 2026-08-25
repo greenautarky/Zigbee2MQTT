@@ -1,7 +1,10 @@
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base:3.21
-  amd64: ghcr.io/home-assistant/amd64-base:3.21
-  i386: ghcr.io/home-assistant/i386-base:3.21
-  # See https://github.com/zigbee2mqtt/hassio-zigbee2mqtt/pull/652#issuecomment-2448119395 why 3.18 is used
-  armhf: ghcr.io/home-assistant/armhf-base:3.18
-  armv7: ghcr.io/home-assistant/armv7-base:3.18
+  # aarch64 + amd64: identical to upstream zigbee2mqtt/hassio-zigbee2mqtt
+  # (Alpine 3.22). Keep these in lockstep with upstream on every Z2M bump.
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.22
+  amd64: ghcr.io/home-assistant/amd64-base:3.22
+  # armv7: the only GreenAutarky-specific divergence. Upstream stopped building
+  # armv7 after 2.6.3-1; we keep it alive on Alpine 3.21 (Node 22), the base our
+  # CI has verified builds Z2M 2.12.x on 32-bit ARM. (armv7-base:3.22 exists but
+  # 3.21 is the proven one — bump it only after a green armv7 CI run.)
+  armv7: ghcr.io/home-assistant/armv7-base:3.21

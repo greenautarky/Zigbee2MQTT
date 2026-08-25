@@ -1,3 +1,25 @@
+## 2.12.1-4
+
+- **Version bump with no content change, and that is the point.** Merging this branch
+  to `master` touches `zigbee2mqtt/config.json`, `common/**` and `publish.yaml` — all
+  three of the publish trigger's paths — so the merge fires a publish. On `master` that
+  publish writes `:latest` and `:<version>` unconditionally, with none of the
+  `is_default_branch` gating the sibling pipelines have.
+- Without this bump it would have rewritten **`:2.12.1-3`**: the tag the OS pins in
+  `addon-images.json`, and the exact image running on the canary that passed 41 of 41
+  device checks unpatched on 2026-08-24. The pin would still read `2.12.1-3` and would
+  resolve to a freshly built artefact nobody had tested — same version string, different
+  image, which is the hardest form of drift to notice.
+- The version string IS the docker tag IS what the OS pins (ADR-0018). A new artefact
+  therefore gets a new version. `2.12.1-3` stays exactly as it was proven; the OS pin
+  moves to `-4` as its own deliberate step, when there is a reason to test it.
+- No functional change to the add-on.
+
+## 2.12.1-1
+- Updated Zigbee2MQTT to version [`2.12.1`](https://github.com/Koenkk/zigbee2mqtt/releases/tag/2.12.1)
+- GreenAutarky self-build: publish to `ghcr.io/greenautarky/ga_zigbee2mqtt-{arch}` for **aarch64, amd64 and armv7**. Upstream dropped armv7 after 2.6.3-1; we rebuild it on the Alpine 3.21 / Node 22 base so the iHost (armv7) fleet can move past 2.6.3.
+- Dockerfile synced to upstream: install the exact pinned `pnpm` from `package.json` (required for `--frozen-lockfile` on 2.12.x), base-image curl validation, container HEALTHCHECK.
+
 ## 2.1.1-1
 - Updated Zigbee2MQTT to version [`2.1.1`](https://github.com/Koenkk/zigbee2mqtt/releases/tag/2.1.1)
 

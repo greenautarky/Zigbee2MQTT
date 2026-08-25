@@ -1,6 +1,6 @@
 {
   "name": "GA_Zigbee2MQTT",
-  "version": "2.1.0-1",
+  "version": "2.12.1-4",
   "slug": "ga_zigbee2mqtt",
   "description": "Use your ZigBee devices without the vendor's bridge or gateway",
   "breaking_versions": [
@@ -16,9 +16,7 @@
   "arch": [
     "aarch64",
     "amd64",
-    "armhf",
-    "armv7",
-    "i386"
+    "armv7"
   ],
   "boot": "auto",
   "init": false,
@@ -58,15 +56,8 @@
       "options": "-d -d",
       "log": false
     },
-    "mqtt": {
-      "server": "mqtt://addon_0b97fa2c_ga_mosquitto:1883",
-      "user": "ga_zigbee2mqtt",
-      "password": "ga_zigbee2mqtt"
-      },
-      "serial": {
-        "adapter": "zstack",
-        "port": "/dev/ttyACM0"
-      }
+    "mqtt": {},
+    "serial": {}
   },
   "schema": {
     "data_path": "str",
@@ -92,7 +83,8 @@
       "baudrate": "int?",
       "rtscts": "bool?"
     },
-    "watchdog": "str?"
+    "watchdog": "str?",
+    "force_onboarding": "bool?"
   },
-  "image": "zigbee2mqtt/zigbee2mqtt-{arch}"
+  "image": "ghcr.io/greenautarky/ga_zigbee2mqtt-{arch}"
 }
