@@ -31,6 +31,9 @@ newer Z2M if **we build it ourselves**. That is what this fork does.
   (native arm64 runner for aarch64; qemu of *arm64* SIGILLs, qemu of *arm32*
   is stable — see the matrix comments in `publish.yaml`).
 - armv7 base image is our one divergence: **`armv7-base:3.21`** (Node 22).
+  Home Assistant stopped rebuilding the armv7 base images in 2025-11, so since
+  2.12.1-5 (released as 2.12.1-6) `common/Dockerfile` runs `apk upgrade` and replaces `tempio` itself.
+  Bump `TEMPIO_VERSION` (and its three sha256 values) when upstream releases.
   aarch64/amd64 track upstream's `3.22`. Keep these in lockstep on every bump;
   only move armv7 off 3.21 after a green armv7 CI run.
 
