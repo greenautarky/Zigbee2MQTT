@@ -1,3 +1,7 @@
+## 2.12.1-6
+
+- Same change as 2.12.1-5, released under a new number: the merge to master rebuilds the image, and a version must name one artefact. 2.12.1-5 stays the pre-merge build.
+
 ## 2.12.1-5
 
 - **Rebuild with a refreshed base layer; Zigbee2MQTT itself is unchanged (2.12.1).**
