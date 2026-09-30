@@ -78,6 +78,27 @@ jobs:
           echo "Detected add-on version: ${ver}"
           echo "value=${ver}" >> "$GITHUB_OUTPUT"
 
+      - name: Refuse to overwrite a published version
+        id: exist
+        shell: bash
+        run: |
+          set -uo pipefail
+          # A version names ONE artefact. Without this, the merge to master rebuilt
+          # and re-pushed a tag the canary had already tested (2.12.1-4, 2.12.1-5).
+          # Only "not found" means absent; any other lookup error fails the job
+          # instead of silently rebuilding.
+          ref="${IMAGE_NS}/${ADDON_SLUG}-${{ matrix.ha_arch }}:${{ steps.ver.outputs.value }}"
+          if out=$(docker manifest inspect "$ref" 2>&1); then
+            echo "::notice::$ref is already published — not rebuilding it. Bump config.json to publish a new build."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif echo "$out" | grep -qiE "manifest unknown|not found|no such manifest"; then
+            echo "$ref is not published yet — building it."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::could not tell whether $ref exists: $out"
+            exit 1
+          fi
+
       - name: Prepare build context
         shell: bash
         run: |
@@ -116,6 +137,7 @@ jobs:
           echo "img=${img}" >> "$GITHUB_OUTPUT"
 
       - name: Build & Push (${{ matrix.ha_arch }})
+        if: steps.exist.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./${{ env.ADDON_DIR }}
