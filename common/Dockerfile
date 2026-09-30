@@ -3,10 +3,29 @@ FROM $BUILD_FROM as base
 
 ENV LANG C.UTF-8
 ARG BUILD_VERSION
+ARG BUILD_ARCH
+ARG TEMPIO_VERSION=2026.07.0
 
-RUN apk add --no-cache socat tini nodejs eudev && \
+# GA self-build: refresh the base layer. The Home Assistant armv7 base images
+# stopped being rebuilt in 2025-11, so their Alpine packages and the tempio
+# helper binary they carry are frozen at that date. `apk upgrade` moves every
+# package to the current release of the same Alpine branch; tempio is replaced
+# by a current upstream release, verified against a pinned sha256 per arch.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache socat tini nodejs eudev && \
     # Validation to confirm that curl is installed in the base image.
-    curl --version || (echo "curl missing" && exit 1)
+    (curl --version || (echo "curl missing" && exit 1)) && \
+    case "${BUILD_ARCH}" in \
+      armv7)   sha=1887c4721317ee166de703ddb30f906c9f98f01f08a6b2da295c10946a0c8110 ;; \
+      aarch64) sha=dd846861a6829bdf1267b09d4735fc6ebd0cc748c73542eb9e721c9c4d833209 ;; \
+      amd64)   sha=c03682e407110fa89475c0231cde5c4b5fd59660c7fc68e5ce5d2e703ed8c002 ;; \
+      *) echo "unsupported BUILD_ARCH '${BUILD_ARCH}'" && exit 1 ;; \
+    esac && \
+    curl -fsSL -o /tmp/tempio \
+      "https://github.com/home-assistant/tempio/releases/download/${TEMPIO_VERSION}/tempio_${BUILD_ARCH}" && \
+    echo "${sha}  /tmp/tempio" | sha256sum -c - && \
+    install -m 0755 /tmp/tempio /usr/bin/tempio && \
+    rm -f /tmp/tempio
 
 # Dependencies and build
 FROM base as dependencies_and_build

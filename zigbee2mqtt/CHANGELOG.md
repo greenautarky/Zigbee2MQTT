@@ -1,3 +1,14 @@
+## 2.12.1-5
+
+- **Rebuild with a refreshed base layer; Zigbee2MQTT itself is unchanged (2.12.1).**
+  The Home Assistant armv7 base image (`armv7-base:3.21`) has not been rebuilt since
+  2025-11, so its Alpine packages and its `tempio` helper were frozen at that date.
+  `common/Dockerfile` now runs `apk upgrade` (current Alpine 3.21 packages, Node
+  22.22 → 22.23) and replaces `tempio` with upstream release 2026.07.0 (sha256-verified).
+  Applies to all three arches.
+- No change to options, the data directory or the configuration format.
+- Needs the armv7 canary check from `GA-ARMV7-MAINTENANCE.md` before the OS pin moves.
+
 ## 2.12.1-4
 
 - **Version bump with no content change, and that is the point.** Merging this branch
