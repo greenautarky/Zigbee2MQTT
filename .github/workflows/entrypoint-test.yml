@@ -1,0 +1,32 @@
+name: Entrypoint self-test
+
+# Runs the live common/rootfs/docker-entrypoint.sh against fixtures (bashio stubbed,
+# fake node) and asserts the GA linkquality default reaches Zigbee2MQTT for fresh
+# and existing configurations, and never replaces an owner's device_options.
+
+on:
+  pull_request:
+    paths:
+      - "common/rootfs/**"
+      - "common/test/**"
+      - ".github/workflows/entrypoint-test.yml"
+  push:
+    branches: [ master ]
+    paths:
+      - "common/rootfs/**"
+      - "common/test/**"
+      - ".github/workflows/entrypoint-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  entrypoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PyYAML for real YAML parsing of the seeded file
+        run: python3 -c 'import yaml' || pip install pyyaml
+      - name: Entrypoint self-test
+        run: bash common/test/test-entrypoint-device-options.sh

@@ -46,6 +46,14 @@ else
     bashio::log.info "Socat not enabled"
 fi
 
+# GA default (2.12.1-7): link-quality sensors are created ENABLED in Home Assistant.
+# Zigbee2MQTT publishes `linkquality` with `enabled_by_default: false`; the global
+# `device_options.homeassistant.<object_id>` override is merged into every device's
+# options (lib/model/device.ts) and applied to the discovery payload
+# (lib/extension/homeassistant.ts). Single definition, used for the seed below AND
+# for existing configurations. JSON is valid YAML flow syntax.
+GA_DEVICE_OPTIONS='{"homeassistant":{"linkquality":{"enabled_by_default":true}}}'
+
 export ZIGBEE2MQTT_DATA="$(bashio::config 'data_path')"
 if ! bashio::fs.file_exists "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
     mkdir -p "$ZIGBEE2MQTT_DATA" || bashio::exit.nok "Could not create $ZIGBEE2MQTT_DATA"
@@ -58,7 +66,20 @@ advanced:
   network_key: GENERATE
   pan_id: GENERATE
   ext_pan_id: GENERATE
+device_options: ${GA_DEVICE_OPTIONS}
 EOF
+fi
+
+# Existing configurations (seeded before 2.12.1-7) carry no `device_options`. Supply
+# the GA default through Zigbee2MQTT's environment override, which Zigbee2MQTT also
+# persists into configuration.yaml on its next settings write. A `device_options`
+# block already in the file is the owner's and is never replaced; if it lacks the
+# linkquality override, say so loudly instead of silently running without it.
+if ! grep -q '^device_options:' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
+    export ZIGBEE2MQTT_CONFIG_DEVICE_OPTIONS="${GA_DEVICE_OPTIONS}"
+    bashio::log.info "GA default applied: device_options=${GA_DEVICE_OPTIONS}"
+elif ! grep -q 'linkquality' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
+    bashio::log.warning "configuration.yaml has its own device_options without a linkquality override; the GA default (linkquality enabled in Home Assistant) is NOT applied"
 fi
 
 if bashio::config.has_value 'watchdog'; then

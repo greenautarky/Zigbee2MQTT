@@ -1,3 +1,22 @@
+## 2.12.1-7
+
+- **Link-quality sensors are created enabled in Home Assistant.** Zigbee2MQTT 2.12.1
+  announces `linkquality` with `enabled_by_default: false`. The add-on now sets the
+  global override `device_options: {homeassistant: {linkquality: {enabled_by_default: true}}}`:
+  - fresh installs: written into the seeded `configuration.yaml`;
+  - existing installs without `device_options`: supplied through
+    `ZIGBEE2MQTT_CONFIG_DEVICE_OPTIONS` (Zigbee2MQTT persists it on its next settings write);
+  - an existing `device_options` block is never replaced; if it has no linkquality
+    override, the add-on logs a WARNING.
+- Scope: the override changes the discovery payload. Home Assistant applies
+  `enabled_by_default` only when it first creates an entity; link-quality entities that
+  already exist as disabled stay disabled.
+- A per-device `homeassistant:` block in `devices.<ieee>` replaces the global one for that
+  device (shallow merge in Zigbee2MQTT).
+- New CI: `common/test/test-entrypoint-device-options.sh` runs the live entrypoint against
+  three fixtures (`.github/workflows/entrypoint-test.yml`).
+- Zigbee2MQTT itself is unchanged (2.12.1).
+
 ## 2.12.1-6
 
 - Publishing no longer overwrites a version that is already published; a merge after a branch build keeps the tested image.
