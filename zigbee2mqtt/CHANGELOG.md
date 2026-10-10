@@ -1,3 +1,22 @@
+## 2.12.1-8
+
+- **Zigbee2MQTT logs at `warning`, to the console only.** At `info` it logged every
+  MQTT payload twice: into the container log (the persistent journal) and into a
+  file under `<data_path>/log`. That was about 1 MB/h of storage writes that
+  nothing reads.
+  - fresh installs: `advanced.log_level: warning` and `advanced.log_output: [console]`
+    are written into the seeded `configuration.yaml`;
+  - existing installs without those keys: supplied through
+    `ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL` / `…_LOG_OUTPUT`;
+  - a `log_level` or `log_output` the owner has set is never overridden.
+- Errors still arrive everywhere they are read. Both consumers of
+  `zigbee2mqtt/bridge/logging` act on level `error` only (ga_manager's command-outcome
+  classifier, ga_heating's schedule-rejection watch).
+- Existing log files under `<data_path>/log` are left in place; Zigbee2MQTT rotates them.
+- CI: `common/test/test-entrypoint-device-options.sh` gains the logging cases (15 checks;
+  4 red on 2.12.1-7).
+- Zigbee2MQTT itself is unchanged (2.12.1).
+
 ## 2.12.1-7
 
 - **Link-quality sensors are created enabled in Home Assistant.** Zigbee2MQTT 2.12.1
