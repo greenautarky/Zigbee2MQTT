@@ -5,6 +5,9 @@
 #   1. fresh data dir          -> seeded configuration.yaml carries the override
 #   2. existing config, no key -> override supplied via ZIGBEE2MQTT_CONFIG_DEVICE_OPTIONS
 #   3. owner's device_options  -> left alone, env NOT set, loud warning logged
+# and the GA logging default (advanced.log_level warning, log_output [console]):
+#   1. fresh -> seeded; 2. existing without the keys -> via the environment;
+#   4. owner's log_level/log_output -> left alone, env NOT set
 # Usage: test-entrypoint-device-options.sh [path/to/docker-entrypoint.sh]
 set -uo pipefail   # no -e: every check must run and report
 
@@ -18,6 +21,8 @@ mkdir -p "$WORK/bin" "$WORK/app"
 cat > "$WORK/bin/node" <<'NODE'
 #!/usr/bin/env bash
 echo "NODE_ENV_DEVICE_OPTIONS=${ZIGBEE2MQTT_CONFIG_DEVICE_OPTIONS-<unset>}"
+echo "NODE_ENV_LOG_LEVEL=${ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL-<unset>}"
+echo "NODE_ENV_LOG_OUTPUT=${ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT-<unset>}"
 NODE
 chmod +x "$WORK/bin/node"
 
@@ -79,6 +84,36 @@ printf 'version: 4\ndevice_options:\n  legacy: false\n' > "$D3/configuration.yam
 out="$(run "$D3")"
 grep -q '^NODE_ENV_DEVICE_OPTIONS=<unset>$' <<<"$out"; check "owner: env NOT set over an existing device_options block" $?
 grep -q '^WARNING .*linkquality' <<<"$out"; check "owner: missing linkquality override is logged as WARNING" $?
+
+# --- logging default (2.12.1-8) ---------------------------------------------
+yaml_get() {  # $1 file, $2 dotted key -> JSON of the value, or "MISSING"
+    python3 -I -c '
+import sys, json, yaml
+d = yaml.safe_load(open(sys.argv[1])) or {}
+for k in sys.argv[2].split("."):
+    if not isinstance(d, dict) or k not in d: print("MISSING"); sys.exit(0)
+    d = d[k]
+print(json.dumps(d))' "$1" "$2"
+}
+out1="$(run "$WORK/fresh2")"
+[ "$(yaml_get "$WORK/fresh2/configuration.yaml" advanced.log_level)" = '"warning"' ]; check "fresh: seed has advanced.log_level=warning" $?
+[ "$(yaml_get "$WORK/fresh2/configuration.yaml" advanced.log_output)" = '["console"]' ]; check "fresh: seed has advanced.log_output=[console]" $?
+[ "$(yaml_get "$WORK/fresh2/configuration.yaml" advanced.network_key)" = '"GENERATE"' ]; check "fresh: the rest of advanced is still seeded" $?
+grep -q '^NODE_ENV_LOG_LEVEL=<unset>$' <<<"$out1"; check "fresh: no env override when the seed carries the key" $?
+
+out2="$(run "$D2")"
+grep -q '^NODE_ENV_LOG_LEVEL=warning$' <<<"$out2"; check "existing: ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL=warning" $?
+lo="$(sed -n 's/^NODE_ENV_LOG_OUTPUT=//p' <<<"$out2")"
+python3 -I -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1])==["console"] else 1)' "$lo" 2>/dev/null
+check "existing: ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT parses to [\"console\"] (got: $lo)" $?
+
+D4="$WORK/owner-log"; mkdir -p "$D4"
+printf 'version: 4\nadvanced:\n  log_level: debug\n  log_output:\n    - console\n    - file\n' > "$D4/configuration.yaml"
+before4="$(cat "$D4/configuration.yaml")"
+out4="$(run "$D4")"
+grep -q '^NODE_ENV_LOG_LEVEL=<unset>$' <<<"$out4"; check "owner: log_level in the file is not overridden" $?
+grep -q '^NODE_ENV_LOG_OUTPUT=<unset>$' <<<"$out4"; check "owner: log_output in the file is not overridden" $?
+[ "$before4" = "$(cat "$D4/configuration.yaml")" ]; check "owner: configuration.yaml not rewritten" $?
 
 echo "checks=$checks fails=$fails"
 [ "$checks" -gt 0 ] || { echo "FAIL: zero checks ran"; exit 1; }

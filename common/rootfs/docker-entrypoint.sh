@@ -54,6 +54,17 @@ fi
 # for existing configurations. JSON is valid YAML flow syntax.
 GA_DEVICE_OPTIONS='{"homeassistant":{"linkquality":{"enabled_by_default":true}}}'
 
+# GA default (2.12.1-8): log at warning, to the console only (Odoo #1225).
+# At info Zigbee2MQTT logged every MQTT payload, into the container log (the
+# persistent journal) AND a second copy under <data_path>/log: ~1 MB/h of SD
+# writes for nothing that is read. Every consumer of z2m's log acts on level
+# "error" only (ga_manager zigbee_command_log.classify, ga_heating sync.py), so
+# warning keeps all of it. Same pattern as device_options: seeded on a fresh
+# install, supplied through the environment for an existing one, and a key the
+# owner has set in configuration.yaml always wins.
+GA_LOG_LEVEL='warning'
+GA_LOG_OUTPUT='["console"]'
+
 export ZIGBEE2MQTT_DATA="$(bashio::config 'data_path')"
 if ! bashio::fs.file_exists "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
     mkdir -p "$ZIGBEE2MQTT_DATA" || bashio::exit.nok "Could not create $ZIGBEE2MQTT_DATA"
@@ -66,6 +77,8 @@ advanced:
   network_key: GENERATE
   pan_id: GENERATE
   ext_pan_id: GENERATE
+  log_level: ${GA_LOG_LEVEL}
+  log_output: ${GA_LOG_OUTPUT}
 device_options: ${GA_DEVICE_OPTIONS}
 EOF
 fi
@@ -80,6 +93,16 @@ if ! grep -q '^device_options:' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
     bashio::log.info "GA default applied: device_options=${GA_DEVICE_OPTIONS}"
 elif ! grep -q 'linkquality' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
     bashio::log.warning "configuration.yaml has its own device_options without a linkquality override; the GA default (linkquality enabled in Home Assistant) is NOT applied"
+fi
+
+# Logging defaults for configurations that do not set them (see GA_LOG_LEVEL).
+if ! grep -qE '^[[:space:]]+log_level:' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
+    export ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL="${GA_LOG_LEVEL}"
+    bashio::log.info "GA default applied: advanced.log_level=${GA_LOG_LEVEL}"
+fi
+if ! grep -qE '^[[:space:]]+log_output:' "$ZIGBEE2MQTT_DATA/configuration.yaml"; then
+    export ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_OUTPUT="${GA_LOG_OUTPUT}"
+    bashio::log.info "GA default applied: advanced.log_output=${GA_LOG_OUTPUT}"
 fi
 
 if bashio::config.has_value 'watchdog'; then
