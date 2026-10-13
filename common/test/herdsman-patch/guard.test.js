@@ -47,7 +47,7 @@ function guard() {
     return require(path.join(ADAPTER_DIR, "gaNwkCounterGuard.js"));
 }
 
-test("NCP below backup -> raises to backup+8192, WARNING with both values", async () => {
+test("NCP below backup (deficit 1873, within lag) -> raises to backup+8192, INFO with both values", async () => {
     const { guardNwkFrameCounter, MARGIN } = guard();
     assert.equal(MARGIN, 8192);
     const ezsp = fakeEzsp({ ncp: 1000060 });
@@ -57,11 +57,38 @@ test("NCP below backup -> raises to backup+8192, WARNING with both values", asyn
     assert.equal(r.state, "raised");
     assert.deepEqual(ezsp.sets, [1001933 + 8192]);
     assert.equal(ezsp.counter, 1010125);
-    assert.ok(lines.warning.some((m) => m.includes("1000060") && m.includes("1001933")));
-    assert.ok(lines.warning.some((m) => m.includes("raised NWK counter")));
+    assert.ok(lines.info.some((m) => m.includes("1000060") && m.includes("1001933")));
+    assert.ok(lines.info.some((m) => m.includes("raised NWK counter")));
+    assert.equal(lines.warning.length, 0);
     assert.equal(lines.error.length, 0);
-    assert.equal(JSON.parse(fs.readFileSync(sf, "utf8")).state, "raised");
+    const s = JSON.parse(fs.readFileSync(sf, "utf8"));
+    assert.equal(s.state, "raised");
+    assert.equal(s.deficit, 1873);
+    assert.equal(s.level, "info");
 });
+
+// Level selection by deficit (backup - ncp): <= 4096 INFO (expected persistence lag), > 4096 WARNING.
+// The raise itself is identical in every case.
+for (const [deficit, level] of [[1000, "info"], [4096, "info"], [4097, "warning"], [5000, "warning"]]) {
+    test(`deficit ${deficit} -> ${level}, raise unchanged`, async () => {
+        const { guardNwkFrameCounter } = guard();
+        const backup = 2000000;
+        const ezsp = fakeEzsp({ ncp: backup - deficit });
+        const { l, lines } = fakeLogger();
+        const sf = tmpStatus();
+        const r = await guardNwkFrameCounter({ ezsp, backup: backupWith(backup), logger: l, ns: "t", slOk: OK, statusFile: sf });
+        const other = level === "info" ? "warning" : "info";
+        assert.equal(r.state, "raised");
+        assert.deepEqual(ezsp.sets, [backup + 8192]);
+        assert.ok(lines[level].some((m) => m.includes("went BACKWARDS")));
+        assert.ok(lines[level].some((m) => m.includes("raised NWK counter")));
+        assert.ok(!lines[other].some((m) => m.includes("NWK GUARD")));
+        assert.equal(lines.error.length, 0);
+        const s = JSON.parse(fs.readFileSync(sf, "utf8"));
+        assert.equal(s.deficit, deficit);
+        assert.equal(s.level, level);
+    });
+}
 
 for (const ncp of [1001933, 1004109]) {
     test(`NCP ${ncp === 1001933 ? "equal to" : "above"} backup -> quiet, no set`, async () => {
