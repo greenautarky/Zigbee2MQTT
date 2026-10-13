@@ -24,6 +24,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MARGIN = 8192; // two 4096 persistence steps
+const PERSIST_STEP = 4096; // NCP persistence granularity; a deficit up to this is expected lag
 const UINT32_MAX = 0xffffffff;
 const DEFAULT_STATUS_FILE = "/share/ga-z2m-nwk-counter-guard.json";
 
@@ -78,6 +79,10 @@ async function guardNwkFrameCounter(o) {
             writeStatus(statusFile, result);
             return result;
         }
+        result.deficit = result.backup - result.ncp;
+        // Deficit <= one persistence step is the expected NCP lag (INFO); larger is a real anomaly (WARNING).
+        result.level = result.deficit <= PERSIST_STEP ? "info" : "warning";
+        const logLevel = result.level === "info" ? "info" : "warning";
         result.target = result.backup + MARGIN;
         if (result.target > UINT32_MAX) {
             result.state = "rejected";
@@ -86,7 +91,7 @@ async function guardNwkFrameCounter(o) {
             writeStatus(statusFile, result);
             return result;
         }
-        logger.warning(`${tag} NWK frame counter went BACKWARDS across an NCP reset: ncp=${result.ncp} < backup=${result.backup}. Raising NWK counter to ${result.target}.`, ns);
+        logger[logLevel](`${tag} NWK frame counter went BACKWARDS across an NCP reset: ncp=${result.ncp} < backup=${result.backup} (deficit=${result.deficit}, ${result.level === "info" ? "within" : "ABOVE"} the ${PERSIST_STEP}-frame persistence lag). Raising NWK counter to ${result.target}.`, ns);
         const setStatus = await ezsp.ezspSetNWKFrameCounter(result.target);
         result.setStatus = setStatus;
         if (setStatus === slOk) {
@@ -94,7 +99,7 @@ async function guardNwkFrameCounter(o) {
         }
         if (setStatus === slOk && result.after >= result.target) {
             result.state = "raised";
-            logger.warning(`${tag} raised NWK counter: ncp=${result.ncp} -> ${result.after} (backup=${result.backup}).`, ns);
+            logger[logLevel](`${tag} raised NWK counter: ncp=${result.ncp} -> ${result.after} (backup=${result.backup}).`, ns);
         } else {
             result.state = "rejected";
             logger.error(`${tag} NCP did NOT accept the NWK counter raise (setStatus=${setStatus}, read back=${result.after}, ncp=${result.ncp}, backup=${result.backup}, target=${result.target}). Devices may drop coordinator frames as replays until the counter passes ${result.backup}. Not re-forming the network.`, ns);
@@ -108,4 +113,4 @@ async function guardNwkFrameCounter(o) {
     return result;
 }
 
-module.exports = { guardNwkFrameCounter, MARGIN, DEFAULT_STATUS_FILE };
+module.exports = { guardNwkFrameCounter, MARGIN, PERSIST_STEP, DEFAULT_STATUS_FILE };

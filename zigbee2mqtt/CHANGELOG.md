@@ -1,3 +1,13 @@
+## 2.12.1-10
+
+- **NWK counter guard: log level by deficit (Odoo #1221).** The guard's behaviour is
+  unchanged (same compare, same raise to backup + 8192, same read-back). Only the log
+  level and the status file differ: a deficit (backup - NCP) of at most 4096 is the
+  expected NCP persistence lag and is logged at INFO; a deficit above 4096 is a real
+  anomaly and stays WARNING. `/share/ga-z2m-nwk-counter-guard.json` now records
+  `deficit` and `level` (`info` / `warning`) whenever the counter went backwards.
+  ERROR paths (raise rejected, uint32 overflow, guard failure) are unchanged.
+
 ## 2.12.1-9
 
 - **NWK frame-counter guard at every Zigbee start (Odoo #1221).** The EFR32 coordinator
