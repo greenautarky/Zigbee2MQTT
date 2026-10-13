@@ -1,3 +1,31 @@
+## 2.12.1-9
+
+- **NWK frame-counter guard at every Zigbee start (Odoo #1221).** The EFR32 coordinator
+  stores its outgoing NWK frame counter only in 4096-frame steps. After a restore that
+  raised the counter, an NCP reset (e.g. the consent reboot) could resume *below* frames
+  already sent, so devices dropped our commands as replays (setpoint writes timed out,
+  reports still arrived). A small, isolated zigbee-herdsman patch now runs on the
+  "Adapter network matches config" start path:
+  - reads the NCP counter and compares it with `coordinator_backup.json`;
+  - NCP < backup: logs a WARNING with both values and raises the counter to
+    backup + 8192, then reads it back to verify;
+  - the NCP rejects the raise (or the read-back does not show it): logs an ERROR and
+    writes `state: rejected` to `/share/ga-z2m-nwk-counter-guard.json`. It does **not**
+    leave and re-form the network (that drops the child table; not proven safe for joined
+    devices). Every start that resumes the existing network writes that file, with a
+    timestamp (`ok` / `raised` / `rejected` / `error` /
+    `no-backup`).
+  - equal or higher: quiet (info level only).
+- The guard compares against the backup that Zigbee2MQTT writes on every clean stop
+  (SIGTERM from the Supervisor on add-on stop or host reboot, within the add-on's 30 s
+  `timeout`), so a reboot leaves a fresh high-water mark. After an unclean power loss the
+  daily backup is used; the 8192 margin covers part of that gap, not all of it.
+- Patch: `common/herdsman-patch/` (applied at image build, pinned to herdsman 10.6.1; the
+  build fails on another version or if the anchor is not found exactly once).
+- CI: `herdsman-patch-test.yml` runs 10 tests against the patched npm herdsman,
+  including the real `initTrustCenter`, and requires the same tests to fail unpatched.
+- Zigbee2MQTT itself is unchanged (2.12.1); log level unchanged (`warning`).
+
 ## 2.12.1-8
 
 - **Zigbee2MQTT logs at `warning`, to the console only.** At `info` it logged every

@@ -1,0 +1,42 @@
+name: Herdsman patch self-test
+
+# Odoo #1221: applies the live common/herdsman-patch/apply-patch.js to the pinned
+# zigbee-herdsman from npm and runs the guard + patched-initTrustCenter tests.
+# Red proof: GA_SKIP_PATCH=1 runs the same tests on unpatched herdsman; that job
+# MUST fail, so the second step inverts it.
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - "common/herdsman-patch/**"
+      - "common/test/herdsman-patch/**"
+      - "common/Dockerfile"
+      - ".github/workflows/herdsman-patch-test.yml"
+  pull_request:
+    paths:
+      - "common/herdsman-patch/**"
+      - "common/test/herdsman-patch/**"
+      - "common/Dockerfile"
+      - ".github/workflows/herdsman-patch-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  herdsman-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Green — tests on patched herdsman
+        run: bash common/test/herdsman-patch/run.sh
+      - name: Red — the same tests must FAIL on unpatched herdsman
+        run: |
+          if GA_SKIP_PATCH=1 bash common/test/herdsman-patch/run.sh; then
+            echo "::error::tests passed on UNPATCHED herdsman — they do not test the patch"
+            exit 1
+          fi
+          echo "red proof ok: tests fail without the patch"

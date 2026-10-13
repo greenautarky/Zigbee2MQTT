@@ -110,3 +110,5 @@ secrets.json
 
 zigbee2mqtt/rootfs
 zigbee2mqtt-edge/rootfs
+zigbee2mqtt/herdsman-patch
+zigbee2mqtt-edge/herdsman-patch

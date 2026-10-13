@@ -58,6 +58,16 @@ RUN apk add --no-cache --virtual .buildtools npm make gcc g++ linux-headers udev
     rm -rf `find ./node_modules/.pnpm/ -wholename "*/@serialport/bindings-cpp/prebuilds" -type d` && \
     pnpm rebuild @serialport/bindings-cpp
 
+# GA patch (Odoo #1221): NWK frame-counter high-water guard in herdsman's Ember
+# start path. apply-patch.js fails the build on a herdsman version it was not
+# reviewed for, or if its anchor is not found exactly once.
+COPY herdsman-patch /ga-herdsman-patch
+RUN set -e; cd /app; \
+    dirs=$(find node_modules/.pnpm -maxdepth 3 -type d -path "*/node_modules/zigbee-herdsman"); \
+    n=$(echo "$dirs" | grep -c . || true); \
+    [ "$n" = "1" ] || { echo "expected exactly 1 zigbee-herdsman install, found $n: $dirs"; exit 1; }; \
+    node /ga-herdsman-patch/apply-patch.js "$dirs"
+
 # Release
 FROM base as release
 
