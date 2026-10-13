@@ -107,6 +107,7 @@ jobs:
           # add-on variants — stage them into the build dir like the upstream CI.
           cp common/Dockerfile "${ADDON_DIR}/Dockerfile"
           cp -R common/rootfs "${ADDON_DIR}/rootfs"
+          cp -R common/herdsman-patch "${ADDON_DIR}/herdsman-patch"
 
       - name: Metadata (tags/labels)
         id: meta
