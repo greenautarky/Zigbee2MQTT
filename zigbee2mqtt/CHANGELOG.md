@@ -1,3 +1,7 @@
+## 2.12.1-11
+
+- **Security rebuild, no source change (Odoo #1431).** Rebuilt so the image-time `apk upgrade` pulls `brotli-libs` 1.1.1-r0 (Alpine 3.21), which fixes CVE-2026-111497; 2.12.1-10 shipped 1.1.0-r2. Zigbee2MQTT, the zigbee-herdsman patch and the NWK guard are unchanged.
+
 ## 2.12.1-10
 
 - **NWK counter guard: log level by deficit (Odoo #1221).** The guard's behaviour is
