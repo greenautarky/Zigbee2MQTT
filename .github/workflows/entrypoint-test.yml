@@ -9,12 +9,14 @@ on:
     paths:
       - "common/rootfs/**"
       - "common/test/**"
+      - "common/ga-converters/**"
       - ".github/workflows/entrypoint-test.yml"
   push:
     branches: [ master ]
     paths:
       - "common/rootfs/**"
       - "common/test/**"
+      - "common/ga-converters/**"
       - ".github/workflows/entrypoint-test.yml"
   workflow_dispatch:
 
@@ -30,3 +32,5 @@ jobs:
         run: python3 -c 'import yaml' || pip install pyyaml
       - name: Entrypoint self-test
         run: bash common/test/test-entrypoint-device-options.sh
+      - name: GA converter install self-test (Odoo #1934)
+        run: bash common/test/test-entrypoint-ga-converters.sh

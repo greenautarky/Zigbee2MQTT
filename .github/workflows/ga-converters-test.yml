@@ -1,0 +1,44 @@
+name: GA converters self-test
+
+# Odoo #1934: resolves the LIVE common/ga-converters/*.mjs against the
+# zigbee-herdsman-converters version the pinned Zigbee2MQTT locks, and asserts every
+# converter matches only its fingerprint and leaves control devices unchanged.
+# Red proof: GA_SKIP_CONVERTERS=1 runs the same assertions without the converters;
+# that run MUST fail, so the second step inverts it.
+
+on:
+  pull_request:
+    paths:
+      - "common/ga-converters/**"
+      - "common/test/ga-converters/**"
+      - "zigbee2mqtt/config.json"
+      - ".github/workflows/ga-converters-test.yml"
+  push:
+    branches: [ master ]
+    paths:
+      - "common/ga-converters/**"
+      - "common/test/ga-converters/**"
+      - "zigbee2mqtt/config.json"
+      - ".github/workflows/ga-converters-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ga-converters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Green — converters loaded
+        run: bash common/test/ga-converters/run.sh
+      - name: Red — the same tests must FAIL without the converters
+        run: |
+          if GA_SKIP_CONVERTERS=1 bash common/test/ga-converters/run.sh; then
+            echo "::error::tests passed WITHOUT the GA converters — they do not test the converters"
+            exit 1
+          fi
+          echo "red proof ok: tests fail without the converters"

@@ -145,6 +145,57 @@ if (bashio::config.is_empty 'mqtt' || ! (bashio::config.has_value 'mqtt.server' 
     export ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD="$(bashio::services 'mqtt' 'password')"
 fi
 
+# GA external converters (2.12.1-12, Odoo #1934, KB #354). Device definitions the
+# pinned zigbee-herdsman-converters lacks — e.g. the on/off countdown of the TS0014
+# `_TZ3000_cxw02yp3`, which ga_heating needs as its dead-man — ship in the image under
+# GA_CONVERTER_SRC and are installed into <data>/external_converters/, which
+# Zigbee2MQTT 2.x loads on start. A converter only matches its own fingerprint, so it
+# changes nothing on a device where that hardware is not paired.
+#   * Every *.mjs in GA_CONVERTER_SRC is installed; one that is already identical is
+#     left untouched (idempotent: no write, no log line).
+#   * A same-named file WITHOUT the GA marker is the owner's: never overwritten, and
+#     said loudly.
+#   * A file WITH the marker that the image no longer ships is removed, so a converter
+#     dropped once upstream supports the device does not linger. Files without the
+#     marker are never removed.
+GA_CONVERTER_SRC="${GA_CONVERTER_SRC:-/ga-converters}"
+GA_CONVERTER_MARKER='// GA-MANAGED external converter'
+# The marker counts only on LINE 1. An owner's file that merely mentions the marker
+# text further down (a comment, a copied snippet) is still the owner's (review #12).
+ga_converter_marked() { head -n1 "$1" 2>/dev/null | grep -qF "$GA_CONVERTER_MARKER"; }
+install_ga_converters() {
+    local dst="$ZIGBEE2MQTT_DATA/external_converters" src name target
+    if [ ! -d "$GA_CONVERTER_SRC" ]; then
+        bashio::log.warning "GA converters: $GA_CONVERTER_SRC is missing from the image — none installed"
+        return 0
+    fi
+    mkdir -p "$dst" || { bashio::log.warning "GA converters: cannot create $dst — none installed"; return 0; }
+    for src in "$GA_CONVERTER_SRC"/*.mjs; do
+        [ -e "$src" ] || continue
+        name="$(basename "$src")"
+        target="$dst/$name"
+        if [ -e "$target" ] && ! ga_converter_marked "$target"; then
+            bashio::log.warning "GA converter $name NOT installed: $target exists without the GA-MANAGED marker and is kept as the owner's file"
+            continue
+        fi
+        if ! cmp -s "$src" "$target"; then
+            # rm first: cp would follow a pre-existing symlink at .ga-tmp and write
+            # through it to wherever it points (review #12).
+            rm -f "$target.ga-tmp" && cp "$src" "$target.ga-tmp" && mv -f "$target.ga-tmp" "$target" \
+                && bashio::log.info "GA converter installed: $name" \
+                || bashio::log.warning "GA converter $name could not be installed into $dst"
+        fi
+    done
+    for target in "$dst"/*.mjs; do
+        [ -e "$target" ] || continue
+        name="$(basename "$target")"
+        if [ ! -e "$GA_CONVERTER_SRC/$name" ] && ga_converter_marked "$target"; then
+            rm -f "$target" && bashio::log.info "GA converter removed (no longer shipped): $name"
+        fi
+    done
+}
+install_ga_converters
+
 bashio::log.info "Starting Zigbee2MQTT..."
 cd /app
 exec node index.js
