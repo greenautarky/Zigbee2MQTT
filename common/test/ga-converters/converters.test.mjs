@@ -37,6 +37,10 @@ if (!SKIP) {
     for (const f of files) zhc.addExternalDefinition((await import(path.join(STAGE, f))).default);
 }
 
+test("the control list is not empty (a vacuous control check proves nothing)", () => {
+    assert.ok(Array.isArray(FIX.controls) && FIX.controls.length > 0, "no control devices in fixtures.json");
+});
+
 test("every shipped converter has a fixture entry (coverage, fails closed)", () => {
     assert.ok(files.length > 0, "no converter shipped — nothing inspected");
     for (const f of files) assert.ok(FIX.converters[f], `no fixture entry for ${f}`);

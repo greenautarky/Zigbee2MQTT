@@ -160,6 +160,9 @@ fi
 #     marker are never removed.
 GA_CONVERTER_SRC="${GA_CONVERTER_SRC:-/ga-converters}"
 GA_CONVERTER_MARKER='// GA-MANAGED external converter'
+# The marker counts only on LINE 1. An owner's file that merely mentions the marker
+# text further down (a comment, a copied snippet) is still the owner's (review #12).
+ga_converter_marked() { head -n1 "$1" 2>/dev/null | grep -qF "$GA_CONVERTER_MARKER"; }
 install_ga_converters() {
     local dst="$ZIGBEE2MQTT_DATA/external_converters" src name target
     if [ ! -d "$GA_CONVERTER_SRC" ]; then
@@ -171,12 +174,14 @@ install_ga_converters() {
         [ -e "$src" ] || continue
         name="$(basename "$src")"
         target="$dst/$name"
-        if [ -e "$target" ] && ! grep -qF "$GA_CONVERTER_MARKER" "$target"; then
+        if [ -e "$target" ] && ! ga_converter_marked "$target"; then
             bashio::log.warning "GA converter $name NOT installed: $target exists without the GA-MANAGED marker and is kept as the owner's file"
             continue
         fi
         if ! cmp -s "$src" "$target"; then
-            cp "$src" "$target.ga-tmp" && mv -f "$target.ga-tmp" "$target" \
+            # rm first: cp would follow a pre-existing symlink at .ga-tmp and write
+            # through it to wherever it points (review #12).
+            rm -f "$target.ga-tmp" && cp "$src" "$target.ga-tmp" && mv -f "$target.ga-tmp" "$target" \
                 && bashio::log.info "GA converter installed: $name" \
                 || bashio::log.warning "GA converter $name could not be installed into $dst"
         fi
@@ -184,7 +189,7 @@ install_ga_converters() {
     for target in "$dst"/*.mjs; do
         [ -e "$target" ] || continue
         name="$(basename "$target")"
-        if [ ! -e "$GA_CONVERTER_SRC/$name" ] && grep -qF "$GA_CONVERTER_MARKER" "$target"; then
+        if [ ! -e "$GA_CONVERTER_SRC/$name" ] && ga_converter_marked "$target"; then
             rm -f "$target" && bashio::log.info "GA converter removed (no longer shipped): $name"
         fi
     done

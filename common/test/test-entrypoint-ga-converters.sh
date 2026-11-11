@@ -91,6 +91,23 @@ out="$(run "$D" "$SRC")"
 grep -q 'INFO GA converter removed (no longer shipped): ga-retired.mjs' <<<"$out"; rc=$?; check "retired GA converter: removal logged" "$rc"
 [ -e "$D/external_converters/keep-me.mjs" ]; rc=$?; check "unmarked file not in the image is kept" "$rc"
 
+# 8 — marker only counts on line 1 (review #12)
+D8="$WORK/marker-late"; mkdir -p "$D8/external_converters"
+late="$D8/external_converters/$(basename "${shipped[0]}")"
+printf '// my converter\n// copied from somewhere: %s\nexport default {};\n' "$MARKER" > "$late"; latesum="$(sha256sum < "$late")"
+printf '// mine too\n/* %s */\nexport default {};\n' "$MARKER" > "$D8/external_converters/ga-lookalike.mjs"; looksum="$(sha256sum < "$D8/external_converters/ga-lookalike.mjs")"
+out="$(run "$D8" "$SRC")"
+[ "$latesum" = "$(sha256sum < "$late")" ]; rc=$?; check "marker below line 1: same-named owner file NOT overwritten" "$rc"
+[ -e "$D8/external_converters/ga-lookalike.mjs" ] && [ "$looksum" = "$(sha256sum < "$D8/external_converters/ga-lookalike.mjs")" ]; rc=$?; check "marker below line 1: unshipped owner file NOT deleted" "$rc"
+
+# 9 — a pre-existing symlink at the temp name is not written through (review #12)
+D9="$WORK/symlink"; mkdir -p "$D9/external_converters"
+victim="$WORK/victim.txt"; printf 'do not touch\n' > "$victim"; vsum="$(sha256sum < "$victim")"
+ln -s "$victim" "$D9/external_converters/$(basename "${shipped[0]}").ga-tmp"
+out="$(run "$D9" "$SRC")"
+[ "$vsum" = "$(sha256sum < "$victim")" ]; rc=$?; check "symlink at .ga-tmp: target outside the data dir unchanged" "$rc"
+cmp -s "${shipped[0]}" "$D9/external_converters/$(basename "${shipped[0]}")"; rc=$?; check "symlink at .ga-tmp: converter still installed" "$rc"
+
 # 7 — source missing in the image
 out="$(run "$WORK/nosrc" "$WORK/does-not-exist")"
 grep -q '^WARNING GA converters: .* is missing from the image' <<<"$out"; rc=$?; check "missing source: WARNING logged" "$rc"
