@@ -1,3 +1,15 @@
+## 2.12.1-12
+
+- **GA external converters, starting with the TS0014 on/off countdown (Odoo #1934, KB #354).** The add-on now ships device converters under `/ga-converters`. At start it installs them into `<data_path>/external_converters/`, which Zigbee2MQTT 2.x loads.
+  - First converter: `ga-ts0014-countdown.mjs`. It is the built-in TS0014 definition with `onOffCountdown: true`, and it matches **only** `_TZ3000_cxw02yp3` ("4CH Zigbee Switch Module-L"). The relay then exposes `countdown_l1…l4`, the device-side dead-man ga_heating requires for underfloor heating.
+  - The firmware countdown was measured on a GA bench device on 2026-11-11: armed for 900 s, the relay switched OFF by itself after exactly 900 s.
+  - Every other device, including other TS0014 manufacturers, the TS0004 and TRVs, resolves exactly as before. Unit fixtures check this against the zigbee-herdsman-converters version the pinned Zigbee2MQTT locks.
+- **Install rules** (`install_ga_converters` in the entrypoint):
+  - Installation is idempotent: an identical file is not rewritten.
+  - A same-named file without the `// GA-MANAGED external converter` marker is the owner's. It is never overwritten, and the add-on logs a WARNING.
+  - A GA-marked file the image no longer ships is removed. Unmarked files are never removed.
+- **Decision (Thomas, 2026-11-11):** relays with an N terminal and a countdown (TS0004 and comparable) are the standard for underfloor heating. The TS0014 "Module-L" is the exception for the first pilot. It has no N terminal and needs at least 10 W per channel.
+
 ## 2.12.1-11
 
 - **Security rebuild, no source change (Odoo #1431).** Rebuilt so the image-time `apk upgrade` pulls `brotli-libs` 1.1.1-r0 (Alpine 3.21), which fixes CVE-2026-111497; 2.12.1-10 shipped 1.1.0-r2. Zigbee2MQTT, the zigbee-herdsman patch and the NWK guard are unchanged.

@@ -74,6 +74,9 @@ FROM base as release
 WORKDIR /app
 
 COPY rootfs /
+# GA external converters (2.12.1-12, Odoo #1934): installed into the data dir by the
+# entrypoint — see install_ga_converters in rootfs/docker-entrypoint.sh.
+COPY ga-converters /ga-converters
 COPY --from=dependencies_and_build /app/node_modules ./node_modules
 COPY --from=dependencies_and_build /app/dist ./dist
 COPY --from=dependencies_and_build /app/package.json /app/LICENSE /app/index.js ./

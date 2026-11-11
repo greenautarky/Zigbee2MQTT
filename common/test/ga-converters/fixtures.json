@@ -1,0 +1,17 @@
+{
+  "_doc": "Odoo #1934. One entry per shipped converter (the test FAILS if a converter in common/ga-converters has no entry). 'match' must resolve to 'model' and expose 'adds' ON TOP of the built-in definition; every 'control' device must resolve and expose exactly the same with and without the GA converters loaded.",
+  "converters": {
+    "ga-ts0014-countdown.mjs": {
+      "match": {"modelID": "TS0014", "manufacturerName": "_TZ3000_cxw02yp3"},
+      "builtin_model": "TS0014",
+      "model": "TS0014_countdown",
+      "adds": ["countdown_l1", "countdown_l2", "countdown_l3", "countdown_l4"]
+    }
+  },
+  "controls": [
+    {"modelID": "TS0014", "manufacturerName": "_TZ3000_jr2atpww", "why": "another TS0014 manufacturer keeps the built-in definition"},
+    {"modelID": "TS0004", "manufacturerName": "_TZ3210_wts1g2oh", "why": "the TS0004 relay ga_heating uses"},
+    {"modelID": "TRVZB", "manufacturerName": "SONOFF", "why": "TRV on every flat"},
+    {"modelID": "SNZB-02D", "manufacturerName": "SONOFF", "why": "room sensor"}
+  ]
+}
